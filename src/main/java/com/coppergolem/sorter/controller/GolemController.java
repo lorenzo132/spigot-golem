@@ -272,8 +272,6 @@ public class GolemController {
         if (golem.getAttribute(Attribute.GENERIC_MOVEMENT_SPEED) != null) {
             golem.getAttribute(Attribute.GENERIC_MOVEMENT_SPEED).setBaseValue(0.25 * speed);
         }
-
-        golem.getPathfinder().moveTo(target);
     }
 
     private boolean isNearLocation(Location loc1, Location loc2, double distance) {
