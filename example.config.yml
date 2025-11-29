@@ -1,0 +1,81 @@
+# Copper Golem Sorter Configuration
+# Configure how copper golems sort items from copper chests to normal chests
+
+# Transfer speed settings
+transfer:
+  # Items transferred per operation (every tick the golem processes)
+  # Higher = faster item transfer
+  # Default: 4 items per operation
+  items-per-operation: 4
+
+  # Ticks between transfer operations (20 ticks = 1 second)
+  # Lower = faster transfers, Higher = slower transfers
+  # Default: 20 (1 second between operations)
+  ticks-between-transfers: 20
+
+  # Movement speed multiplier for golems when carrying items
+  # 1.0 = normal speed, 1.5 = 50% faster, 0.5 = 50% slower
+  # Default: 1.2
+  movement-speed: 1.2
+
+# Carrying capacity settings
+capacity:
+  # Maximum number of item stacks a golem can carry at once
+  # Default: 9 (equivalent to one row of inventory)
+  max-stacks: 9
+
+  # Maximum total items a golem can carry (across all stacks)
+  # Set to -1 for unlimited (only limited by max-stacks)
+  # Default: 576 (9 stacks * 64 items)
+  max-total-items: 576
+
+# Detection range settings
+range:
+  # Maximum distance (in blocks) a golem will detect copper chests
+  # Default: 16
+  copper-chest-detection: 16
+
+  # Maximum distance (in blocks) a golem will detect normal chests for sorting
+  # Default: 24
+  normal-chest-detection: 24
+
+# Sorting behavior
+sorting:
+  # Enable automatic item sorting by type
+  # true = items are organized by material type
+  # false = items are placed in any available slot
+  # Default: true
+  enabled: true
+
+  # Prevent overfilling chests
+  # true = golem will not transfer items if destination chest is full
+  # false = golem may attempt to transfer even if chest is full
+  # Default: true
+  prevent-overfill: true
+
+  # Stack similar items together before transferring
+  # true = combine partial stacks of same item type
+  # false = transfer items as-is
+  # Default: true
+  stack-items: true
+
+# Priority system (optional)
+# Items listed here will be sorted first when multiple item types are available
+# Use Bukkit Material names (e.g., DIAMOND, IRON_INGOT, EMERALD)
+priority-items:
+  - DIAMOND
+  - EMERALD
+  - NETHERITE_INGOT
+  - GOLD_INGOT
+  - IRON_INGOT
+
+# Performance settings
+performance:
+  # Maximum number of golems that can be active simultaneously
+  # -1 = unlimited
+  # Default: 50
+  max-active-golems: 50
+
+  # Enable debug messages in console
+  # Default: false
+  debug: false
