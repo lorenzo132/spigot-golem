@@ -3,6 +3,7 @@ package com.coppergolem.sorter.controller;
 import com.coppergolem.sorter.CopperGolemSorterPlugin;
 import com.coppergolem.sorter.config.ConfigManager;
 import com.coppergolem.sorter.model.GolemTask;
+import com.coppergolem.sorter.sorting.ItemCategory;
 import com.coppergolem.sorter.sorting.ItemSorter;
 import com.coppergolem.sorter.transfer.ChestManager;
 import org.bukkit.Bukkit;
@@ -220,13 +221,7 @@ public class GolemController {
             config.getNormalChestDetection()
         );
 
-        Chest bestChest = null;
-        for (Chest chest : normalChests) {
-            if (chestManager.getEmptySlots(chest) > 0) {
-                bestChest = chest;
-                break;
-            }
-        }
+        Chest bestChest = chestManager.findBestChestForItems(normalChests, task.getCarriedItems());
 
         if (bestChest != null) {
             task.setTargetChest(bestChest);
@@ -262,6 +257,11 @@ public class GolemController {
                 int deposited = itemSorter.addItemToInventory(chest.getInventory(), item);
                 itemsDeposited += deposited;
             }
+        }
+
+        if (!items.isEmpty()) {
+            ItemCategory category = ItemCategory.getCategory(items.get(0).getType());
+            chestManager.placeSignOnChest(chest, category);
         }
 
         task.clearCarriedItems();

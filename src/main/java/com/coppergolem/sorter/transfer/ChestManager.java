@@ -1,15 +1,21 @@
 package com.coppergolem.sorter.transfer;
 
+import com.coppergolem.sorter.sorting.ItemCategory;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
+import org.bukkit.block.BlockFace;
 import org.bukkit.block.Chest;
+import org.bukkit.block.Sign;
+import org.bukkit.block.data.type.WallSign;
 import org.bukkit.entity.Entity;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class ChestManager {
 
@@ -132,5 +138,79 @@ public class ChestManager {
         }
 
         return emptySlots;
+    }
+
+    public Chest findBestChestForItems(List<Chest> chests, List<ItemStack> items) {
+        if (items.isEmpty()) return null;
+
+        ItemCategory category = ItemCategory.getCategory(items.get(0).getType());
+        
+        Chest sameCategory = null;
+        Chest emptyChest = null;
+        Chest anyChest = null;
+
+        for (Chest chest : chests) {
+            int emptySlots = getEmptySlots(chest);
+            if (emptySlots == 0) continue;
+
+            if (emptySlots == chest.getInventory().getSize()) {
+                if (emptyChest == null) emptyChest = chest;
+                continue;
+            }
+
+            ItemCategory chestCategory = getChestCategory(chest);
+            if (chestCategory == category) {
+                return chest;
+            }
+
+            if (anyChest == null) anyChest = chest;
+        }
+
+        return sameCategory != null ? sameCategory : (emptyChest != null ? emptyChest : anyChest);
+    }
+
+    private ItemCategory getChestCategory(Chest chest) {
+        Map<ItemCategory, Integer> categoryCount = new HashMap<>();
+        
+        for (ItemStack item : chest.getInventory().getContents()) {
+            if (item != null && item.getType() != Material.AIR) {
+                ItemCategory cat = ItemCategory.getCategory(item.getType());
+                categoryCount.put(cat, categoryCount.getOrDefault(cat, 0) + item.getAmount());
+            }
+        }
+
+        ItemCategory dominant = null;
+        int maxCount = 0;
+        for (Map.Entry<ItemCategory, Integer> entry : categoryCount.entrySet()) {
+            if (entry.getValue() > maxCount) {
+                maxCount = entry.getValue();
+                dominant = entry.getKey();
+            }
+        }
+
+        return dominant != null ? dominant : ItemCategory.MISC;
+    }
+
+    public void placeSignOnChest(Chest chest, ItemCategory category) {
+        Block chestBlock = chest.getBlock();
+        BlockFace[] faces = {BlockFace.NORTH, BlockFace.SOUTH, BlockFace.EAST, BlockFace.WEST};
+
+        for (BlockFace face : faces) {
+            Block signBlock = chestBlock.getRelative(face);
+            if (signBlock.getType() == Material.AIR) {
+                signBlock.setType(Material.OAK_WALL_SIGN);
+                if (signBlock.getBlockData() instanceof WallSign) {
+                    WallSign wallSign = (WallSign) signBlock.getBlockData();
+                    wallSign.setFacing(face);
+                    signBlock.setBlockData(wallSign);
+                }
+                if (signBlock.getState() instanceof Sign) {
+                    Sign sign = (Sign) signBlock.getState();
+                    sign.setLine(1, category.getDisplayName());
+                    sign.update();
+                }
+                return;
+            }
+        }
     }
 }
