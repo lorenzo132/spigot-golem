@@ -10,7 +10,8 @@ import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.block.Chest;
-import org.bukkit.entity.CopperGolem;
+import org.bukkit.entity.EntityType;
+import org.bukkit.entity.IronGolem;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.scheduler.BukkitTask;
 
@@ -63,11 +64,11 @@ public class GolemController {
         int maxActiveGolems = config.getMaxActiveGolems();
 
         for (World world : Bukkit.getWorlds()) {
-            List<CopperGolem> golems = world.getEntitiesByClass(CopperGolem.class).stream()
+            List<IronGolem> golems = world.getEntitiesByClass(IronGolem.class).stream()
                 .filter(golem -> !golem.isDead() && golem.isValid())
                 .toList();
 
-            for (CopperGolem golem : golems) {
+            for (IronGolem golem : golems) {
                 if (maxActiveGolems > 0 && activeTasks.size() >= maxActiveGolems) {
                     break;
                 }
@@ -86,7 +87,7 @@ public class GolemController {
 
     private void processGolemTask(GolemTask task) {
         ConfigManager config = plugin.getConfigManager();
-        CopperGolem golem = task.getGolem();
+        IronGolem golem = task.getGolem();
         long currentTick = golem.getWorld().getFullTime();
 
         long ticksSinceLastTransfer = currentTick - task.getLastTransferTick();
@@ -131,7 +132,7 @@ public class GolemController {
 
     private void searchForCopperChest(GolemTask task) {
         ConfigManager config = plugin.getConfigManager();
-        CopperGolem golem = task.getGolem();
+        IronGolem golem = task.getGolem();
 
         List<Chest> copperChests = chestManager.findCopperChestsNearby(
             golem.getLocation(),
@@ -161,7 +162,7 @@ public class GolemController {
 
     private void collectItemsFromChest(GolemTask task) {
         ConfigManager config = plugin.getConfigManager();
-        CopperGolem golem = task.getGolem();
+        IronGolem golem = task.getGolem();
         Chest chest = task.getSourceChest();
 
         if (chest == null || !chestManager.hasItems(chest)) {
@@ -195,7 +196,7 @@ public class GolemController {
 
     private void searchForNormalChest(GolemTask task) {
         ConfigManager config = plugin.getConfigManager();
-        CopperGolem golem = task.getGolem();
+        IronGolem golem = task.getGolem();
 
         List<Chest> normalChests = chestManager.findNormalChestsNearby(
             golem.getLocation(),
@@ -228,7 +229,7 @@ public class GolemController {
 
     private void depositItemsToChest(GolemTask task) {
         ConfigManager config = plugin.getConfigManager();
-        CopperGolem golem = task.getGolem();
+        IronGolem golem = task.getGolem();
         Chest chest = task.getTargetChest();
 
         if (chest == null) {
@@ -264,7 +265,7 @@ public class GolemController {
         task.reset();
     }
 
-    private void moveGolemToLocation(CopperGolem golem, Location target) {
+    private void moveGolemToLocation(IronGolem golem, Location target) {
         ConfigManager config = plugin.getConfigManager();
 
         double speed = config.getMovementSpeed();
