@@ -8,10 +8,13 @@ import com.coppergolem.sorter.transfer.ChestManager;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.World;
+import org.bukkit.NamespacedKey;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.block.Chest;
+import org.bukkit.entity.Entity;
 import org.bukkit.entity.EntityType;
-import org.bukkit.entity.IronGolem;
+import org.bukkit.entity.LivingEntity;
+import org.bukkit.Registry;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.scheduler.BukkitTask;
 
@@ -24,12 +27,14 @@ public class GolemController {
     private final ChestManager chestManager;
     private ItemSorter itemSorter;
     private BukkitTask updateTask;
+    private EntityType copperGolemType;
 
     public GolemController(CopperGolemSorterPlugin plugin) {
         this.plugin = plugin;
         this.activeTasks = new HashMap<>();
         this.chestManager = new ChestManager();
         this.itemSorter = createItemSorter();
+        this.copperGolemType = resolveCopperGolemType();
     }
 
     public void start() {
@@ -47,6 +52,7 @@ public class GolemController {
 
     public void reload() {
         itemSorter = createItemSorter();
+        this.copperGolemType = resolveCopperGolemType();
         plugin.getLogger().info("Golem controller reloaded");
     }
 
@@ -63,12 +69,23 @@ public class GolemController {
         ConfigManager config = plugin.getConfigManager();
         int maxActiveGolems = config.getMaxActiveGolems();
 
+        if (copperGolemType == null) {
+            // Log once then skip processing until the type is available
+            if (config.isDebug()) {
+                plugin.getLogger().warning("Copper golem entity type not found (copper_golem). Skipping processing.");
+            }
+            return;
+        }
+
         for (World world : Bukkit.getWorlds()) {
-            List<IronGolem> golems = world.getEntitiesByClass(IronGolem.class).stream()
+            List<LivingEntity> golems = world.getEntities().stream()
+                .filter(e -> e.getType() == copperGolemType)
+                .filter(e -> e instanceof LivingEntity)
+                .map(e -> (LivingEntity) e)
                 .filter(golem -> !golem.isDead() && golem.isValid())
                 .toList();
 
-            for (IronGolem golem : golems) {
+            for (LivingEntity golem : golems) {
                 if (maxActiveGolems > 0 && activeTasks.size() >= maxActiveGolems) {
                     break;
                 }
@@ -87,7 +104,7 @@ public class GolemController {
 
     private void processGolemTask(GolemTask task) {
         ConfigManager config = plugin.getConfigManager();
-        IronGolem golem = task.getGolem();
+        LivingEntity golem = task.getGolem();
         long currentTick = golem.getWorld().getFullTime();
 
         long ticksSinceLastTransfer = currentTick - task.getLastTransferTick();
@@ -132,7 +149,7 @@ public class GolemController {
 
     private void searchForCopperChest(GolemTask task) {
         ConfigManager config = plugin.getConfigManager();
-        IronGolem golem = task.getGolem();
+        LivingEntity golem = task.getGolem();
 
         List<Chest> copperChests = chestManager.findCopperChestsNearby(
             golem.getLocation(),
@@ -162,7 +179,7 @@ public class GolemController {
 
     private void collectItemsFromChest(GolemTask task) {
         ConfigManager config = plugin.getConfigManager();
-        IronGolem golem = task.getGolem();
+        LivingEntity golem = task.getGolem();
         Chest chest = task.getSourceChest();
 
         if (chest == null || !chestManager.hasItems(chest)) {
@@ -196,7 +213,7 @@ public class GolemController {
 
     private void searchForNormalChest(GolemTask task) {
         ConfigManager config = plugin.getConfigManager();
-        IronGolem golem = task.getGolem();
+        LivingEntity golem = task.getGolem();
 
         List<Chest> normalChests = chestManager.findNormalChestsNearby(
             golem.getLocation(),
@@ -229,7 +246,7 @@ public class GolemController {
 
     private void depositItemsToChest(GolemTask task) {
         ConfigManager config = plugin.getConfigManager();
-        IronGolem golem = task.getGolem();
+        LivingEntity golem = task.getGolem();
         Chest chest = task.getTargetChest();
 
         if (chest == null) {
@@ -265,7 +282,7 @@ public class GolemController {
         task.reset();
     }
 
-    private void moveGolemToLocation(IronGolem golem, Location target) {
+    private void moveGolemToLocation(LivingEntity golem, Location target) {
         ConfigManager config = plugin.getConfigManager();
 
         double speed = config.getMovementSpeed();
@@ -279,5 +296,21 @@ public class GolemController {
             return false;
         }
         return loc1.distance(loc2) <= distance;
+    }
+
+    private EntityType resolveCopperGolemType() {
+        // Try enum constant first (if present in current API)
+        try {
+            return EntityType.valueOf("COPPER_GOLEM");
+        } catch (IllegalArgumentException ignored) {}
+
+        // Try registry key lookup by identifier "copper_golem"
+        try {
+            EntityType byKey = Registry.ENTITY_TYPE.get(NamespacedKey.minecraft("copper_golem"));
+            if (byKey != null) return byKey;
+        } catch (Throwable ignored) {}
+
+        // Not available on this server/api
+        return null;
     }
 }

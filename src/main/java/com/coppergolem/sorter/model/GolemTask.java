@@ -1,7 +1,7 @@
 package com.coppergolem.sorter.model;
 
 import org.bukkit.block.Chest;
-import org.bukkit.entity.IronGolem;
+import org.bukkit.entity.LivingEntity;
 import org.bukkit.inventory.ItemStack;
 
 import java.util.ArrayList;
@@ -9,7 +9,7 @@ import java.util.List;
 
 public class GolemTask {
 
-    private final IronGolem golem;
+    private final LivingEntity golem;
     private Chest sourceChest;
     private Chest targetChest;
     private List<ItemStack> carriedItems;
@@ -26,14 +26,14 @@ public class GolemTask {
         DEPOSITING_ITEMS
     }
 
-    public GolemTask(IronGolem golem) {
+    public GolemTask(LivingEntity golem) {
         this.golem = golem;
         this.carriedItems = new ArrayList<>();
         this.state = TaskState.IDLE;
         this.lastTransferTick = 0;
     }
 
-    public IronGolem getGolem() {
+    public LivingEntity getGolem() {
         return golem;
     }
 
