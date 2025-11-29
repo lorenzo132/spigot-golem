@@ -8,7 +8,6 @@ import org.bukkit.block.BlockFace;
 import org.bukkit.block.Chest;
 import org.bukkit.block.Sign;
 import org.bukkit.block.data.type.WallSign;
-import org.bukkit.entity.Entity;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 
@@ -143,7 +142,7 @@ public class ChestManager {
     public Chest findBestChestForItems(List<Chest> chests, List<ItemStack> items) {
         if (items.isEmpty()) return null;
 
-        ItemCategory category = ItemCategory.getCategory(items.get(0).getType());
+        ItemCategory category = ItemCategory.getCategory(items.get(0));
         
         Chest sameCategory = null;
         Chest emptyChest = null;
@@ -170,11 +169,13 @@ public class ChestManager {
     }
 
     private ItemCategory getChestCategory(Chest chest) {
+        ItemCategory bySign = getSignCategory(chest);
+        if (bySign != null) return bySign;
+
         Map<ItemCategory, Integer> categoryCount = new HashMap<>();
-        
         for (ItemStack item : chest.getInventory().getContents()) {
             if (item != null && item.getType() != Material.AIR) {
-                ItemCategory cat = ItemCategory.getCategory(item.getType());
+                ItemCategory cat = ItemCategory.getCategory(item);
                 categoryCount.put(cat, categoryCount.getOrDefault(cat, 0) + item.getAmount());
             }
         }
@@ -188,7 +189,77 @@ public class ChestManager {
             }
         }
 
-        return dominant != null ? dominant : ItemCategory.MISC;
+        return dominant != null ? dominant : ItemCategory.MISC_OVERFLOW;
+    }
+
+    private ItemCategory getSignCategory(Chest chest) {
+        Block chestBlock = chest.getBlock();
+        BlockFace[] faces = {BlockFace.NORTH, BlockFace.SOUTH, BlockFace.EAST, BlockFace.WEST};
+        for (BlockFace face : faces) {
+            Block signBlock = chestBlock.getRelative(face);
+            Material type = signBlock.getType();
+            if (!type.name().endsWith("_WALL_SIGN") && !type.name().endsWith("_SIGN")) continue;
+            if (signBlock.getState() instanceof Sign) {
+                Sign sign = (Sign) signBlock.getState();
+                String line = readSignLine(sign, 1);
+                ItemCategory byName = ItemCategory.fromDisplayName(line);
+                if (byName != null) return byName;
+            }
+        }
+        return null;
+    }
+
+    public boolean hasMisplacedItems(Chest chest) {
+        ItemCategory chestCategory = getChestCategory(chest);
+        if (chestCategory == null) return false;
+        Inventory inv = chest.getInventory();
+        for (ItemStack item : inv.getContents()) {
+            if (item == null || item.getType() == Material.AIR) continue;
+            ItemCategory ic = ItemCategory.getCategory(item);
+            if (ic != chestCategory) return true;
+        }
+        return false;
+    }
+
+    public List<ItemStack> extractMisplacedItemsFromChest(Chest chest, int maxStacks, int maxTotalItems) {
+        List<ItemStack> extractedItems = new ArrayList<>();
+        Inventory inventory = chest.getInventory();
+        int stackCount = 0;
+        int totalItemCount = 0;
+
+        ItemCategory chestCategory = getChestCategory(chest);
+        if (chestCategory == null) return extractedItems;
+
+        for (int i = 0; i < inventory.getSize(); i++) {
+            ItemStack item = inventory.getItem(i);
+            if (item == null || item.getType() == Material.AIR) continue;
+
+            if (stackCount >= maxStacks) break;
+            if (maxTotalItems > 0 && totalItemCount >= maxTotalItems) break;
+
+            ItemCategory ic = ItemCategory.getCategory(item);
+            if (ic == chestCategory) continue; // correct chest, skip
+
+            int amountToTake = item.getAmount();
+            if (maxTotalItems > 0 && (totalItemCount + amountToTake) > maxTotalItems) {
+                amountToTake = maxTotalItems - totalItemCount;
+            }
+
+            ItemStack extractedItem = item.clone();
+            extractedItem.setAmount(amountToTake);
+            extractedItems.add(extractedItem);
+
+            if (amountToTake >= item.getAmount()) {
+                inventory.setItem(i, null);
+            } else {
+                item.setAmount(item.getAmount() - amountToTake);
+            }
+
+            stackCount++;
+            totalItemCount += amountToTake;
+        }
+
+        return extractedItems;
     }
 
     public void placeSignOnChest(Chest chest, ItemCategory category) {
@@ -206,11 +277,55 @@ public class ChestManager {
                 }
                 if (signBlock.getState() instanceof Sign) {
                     Sign sign = (Sign) signBlock.getState();
-                    sign.setLine(1, category.getDisplayName());
+                    writeSignLine(sign, 1, category.getDisplayName());
                     sign.update();
                 }
                 return;
             }
         }
+    }
+
+    private String readSignLine(Sign sign, int index) {
+        try {
+            // Newer API path: sign.getSide(Side.FRONT).line(index) -> Component
+            Class<?> sideEnum = Class.forName("org.bukkit.block.sign.Side");
+            Object front = sideEnum.getField("FRONT").get(null);
+            Object side = sign.getClass().getMethod("getSide", sideEnum).invoke(sign, front);
+            Object comp = side.getClass().getMethod("line", int.class).invoke(side, index);
+            if (comp != null) {
+                // Try Component#toString or plain content via PlainTextComponentSerializer if present
+                try {
+                    Class<?> serializer = Class.forName("net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer");
+                    Object inst = serializer.getMethod("plainText").invoke(null);
+                    String text = (String) serializer.getMethod("serialize", Class.forName("net.kyori.adventure.text.Component")).invoke(inst, comp);
+                    return text;
+                } catch (Throwable ignored) {
+                    return comp.toString();
+                }
+            }
+        } catch (Throwable ignored) {}
+        try {
+            // Legacy fallback via reflection: Sign#getLine(int)
+            return (String) sign.getClass().getMethod("getLine", int.class).invoke(sign, index);
+        } catch (Throwable ignored) {}
+        return "";
+    }
+
+    private void writeSignLine(Sign sign, int index, String text) {
+        try {
+            // Newer API path: sign.getSide(Side.FRONT).line(index, Component.text(text))
+            Class<?> sideEnum = Class.forName("org.bukkit.block.sign.Side");
+            Object front = sideEnum.getField("FRONT").get(null);
+            Object side = sign.getClass().getMethod("getSide", sideEnum).invoke(sign, front);
+            Class<?> componentClass = Class.forName("net.kyori.adventure.text.Component");
+            Object component = Class.forName("net.kyori.adventure.text.Component")
+                .getMethod("text", String.class).invoke(null, text);
+            side.getClass().getMethod("line", int.class, componentClass).invoke(side, index, component);
+            return;
+        } catch (Throwable ignored) {}
+        try {
+            // Legacy fallback: Sign#setLine(int, String)
+            sign.getClass().getMethod("setLine", int.class, String.class).invoke(sign, index, text);
+        } catch (Throwable ignored) {}
     }
 }

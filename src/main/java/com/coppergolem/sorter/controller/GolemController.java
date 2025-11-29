@@ -167,6 +167,7 @@ public class GolemController {
 
         if (targetChest != null) {
             task.setSourceChest(targetChest);
+            task.setSourceType(GolemTask.SourceType.COPPER);
             task.setState(GolemTask.TaskState.MOVING_TO_SOURCE);
             moveGolemToLocation(golem, targetChest.getLocation());
 
@@ -174,6 +175,25 @@ public class GolemController {
                 plugin.getLogger().info("Golem " + golem.getUniqueId() + " found copper chest at " + targetChest.getLocation());
             }
         } else {
+            // If no copper chest, try reorganizing nearby normal chests for misplaced items
+            if (config.isReorganizeChests()) {
+                List<Chest> normalChests = chestManager.findNormalChestsNearby(
+                    golem.getLocation(),
+                    config.getNormalChestDetection()
+                );
+                for (Chest chest : normalChests) {
+                    if (chestManager.hasItems(chest) && chestManager.hasMisplacedItems(chest)) {
+                        task.setSourceChest(chest);
+                        task.setSourceType(GolemTask.SourceType.NORMAL_REORG);
+                        task.setState(GolemTask.TaskState.MOVING_TO_SOURCE);
+                        moveGolemToLocation(golem, chest.getLocation());
+                        if (config.isDebug()) {
+                            plugin.getLogger().info("Golem " + golem.getUniqueId() + " found misplaced items in chest at " + chest.getLocation());
+                        }
+                        return;
+                    }
+                }
+            }
             task.setState(GolemTask.TaskState.IDLE);
         }
     }
@@ -188,11 +208,20 @@ public class GolemController {
             return;
         }
 
-        List<ItemStack> items = chestManager.extractItemsFromChest(
-            chest,
-            config.getMaxStacks(),
-            config.getMaxTotalItems()
-        );
+        List<ItemStack> items;
+        if (task.getSourceType() == GolemTask.SourceType.NORMAL_REORG) {
+            items = chestManager.extractMisplacedItemsFromChest(
+                chest,
+                config.getMaxStacks(),
+                config.getMaxTotalItems()
+            );
+        } else {
+            items = chestManager.extractItemsFromChest(
+                chest,
+                config.getMaxStacks(),
+                config.getMaxTotalItems()
+            );
+        }
 
         if (items.isEmpty()) {
             task.reset();
@@ -221,19 +250,13 @@ public class GolemController {
             config.getNormalChestDetection()
         );
 
-        Chest bestChest = chestManager.findBestChestForItems(normalChests, task.getCarriedItems());
-
-        if (bestChest != null) {
-            task.setTargetChest(bestChest);
-            task.setState(GolemTask.TaskState.MOVING_TO_TARGET);
-            moveGolemToLocation(golem, bestChest.getLocation());
-
-            if (config.isDebug()) {
-                plugin.getLogger().info("Golem " + golem.getUniqueId() + " found normal chest at " + bestChest.getLocation());
-            }
+        // We will distribute items per-category during deposit, ignoring a single target chest
+        if (!normalChests.isEmpty()) {
+            task.setTargetChest(null);
+            task.setState(GolemTask.TaskState.DEPOSITING_ITEMS);
         } else {
             if (config.isDebug()) {
-                plugin.getLogger().warning("Golem " + golem.getUniqueId() + " couldn't find suitable chest, returning items");
+                plugin.getLogger().warning("Golem " + golem.getUniqueId() + " couldn't find any chests, returning items");
             }
             returnItemsToSource(task);
         }
@@ -242,26 +265,27 @@ public class GolemController {
     private void depositItemsToChest(GolemTask task) {
         ConfigManager config = plugin.getConfigManager();
         LivingEntity golem = task.getGolem();
-        Chest chest = task.getTargetChest();
-
-        if (chest == null) {
-            returnItemsToSource(task);
-            return;
-        }
-
         List<ItemStack> items = new ArrayList<>(task.getCarriedItems());
         int itemsDeposited = 0;
 
-        for (ItemStack item : items) {
-            if (itemSorter.canFitInInventory(chest.getInventory(), item)) {
-                int deposited = itemSorter.addItemToInventory(chest.getInventory(), item);
-                itemsDeposited += deposited;
-            }
-        }
+        List<Chest> normalChests = chestManager.findNormalChestsNearby(
+            golem.getLocation(),
+            config.getNormalChestDetection()
+        );
 
-        if (!items.isEmpty()) {
-            ItemCategory category = ItemCategory.getCategory(items.get(0).getType());
-            chestManager.placeSignOnChest(chest, category);
+        for (ItemStack item : items) {
+            Chest best = chestManager.findBestChestForItems(normalChests, java.util.Collections.singletonList(item));
+            if (best == null) {
+                // couldn't find chest for this item; return all to source and abort
+                returnItemsToSource(task);
+                return;
+            }
+            if (itemSorter.canFitInInventory(best.getInventory(), item)) {
+                int deposited = itemSorter.addItemToInventory(best.getInventory(), item);
+                itemsDeposited += deposited;
+                ItemCategory cat = ItemCategory.getCategory(item);
+                chestManager.placeSignOnChest(best, cat);
+            }
         }
 
         task.clearCarriedItems();

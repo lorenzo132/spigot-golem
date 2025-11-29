@@ -21,6 +21,7 @@ public class ConfigManager {
     private boolean sortingEnabled;
     private boolean preventOverfill;
     private boolean stackItems;
+    private boolean reorganizeChests;
     private List<Material> priorityItems;
     private int maxActiveGolems;
     private boolean debug;
@@ -45,6 +46,7 @@ public class ConfigManager {
         sortingEnabled = config.getBoolean("sorting.enabled", true);
         preventOverfill = config.getBoolean("sorting.prevent-overfill", true);
         stackItems = config.getBoolean("sorting.stack-items", true);
+        reorganizeChests = config.getBoolean("sorting.reorganize-chests", true);
 
         priorityItems = new ArrayList<>();
         List<String> priorityItemStrings = config.getStringList("priority-items");
@@ -108,6 +110,10 @@ public class ConfigManager {
 
     public boolean isStackItems() {
         return stackItems;
+    }
+
+    public boolean isReorganizeChests() {
+        return reorganizeChests;
     }
 
     public List<Material> getPriorityItems() {

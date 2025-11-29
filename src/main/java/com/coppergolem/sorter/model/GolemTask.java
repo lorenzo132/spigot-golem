@@ -15,6 +15,7 @@ public class GolemTask {
     private List<ItemStack> carriedItems;
     private TaskState state;
     private long lastTransferTick;
+    private SourceType sourceType;
 
     public enum TaskState {
         IDLE,
@@ -31,6 +32,7 @@ public class GolemTask {
         this.carriedItems = new ArrayList<>();
         this.state = TaskState.IDLE;
         this.lastTransferTick = 0;
+        this.sourceType = SourceType.COPPER;
     }
 
     public LivingEntity getGolem() {
@@ -97,10 +99,24 @@ public class GolemTask {
         this.lastTransferTick = lastTransferTick;
     }
 
+    public enum SourceType {
+        COPPER,
+        NORMAL_REORG
+    }
+
+    public SourceType getSourceType() {
+        return sourceType;
+    }
+
+    public void setSourceType(SourceType sourceType) {
+        this.sourceType = sourceType;
+    }
+
     public void reset() {
         this.sourceChest = null;
         this.targetChest = null;
         this.carriedItems.clear();
         this.state = TaskState.IDLE;
+        this.sourceType = SourceType.COPPER;
     }
 }

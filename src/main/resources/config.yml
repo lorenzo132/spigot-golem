@@ -59,6 +59,13 @@ sorting:
   # Default: true
   stack-items: true
 
+  # Reorganize existing normal chests
+  # true = golems will also scan nearby normal chests and move items that
+  #        don't match the chest's category into the correct chest
+  # false = golems will only move items from copper chests
+  # Default: true
+  reorganize-chests: true
+
 # Priority system (optional)
 # Items listed here will be sorted first when multiple item types are available
 # Use Bukkit Material names (e.g., DIAMOND, IRON_INGOT, EMERALD)

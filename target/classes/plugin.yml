@@ -8,7 +8,7 @@ description: Enables copper golems to automatically sort items from copper chest
 commands:
   coppergolem:
     description: Main command for copper golem sorter
-    usage: /coppergolem reload
+    usage: /coppergolem reload|audit
     permission: coppergolem.admin
     aliases: [cg, cgsorter]
 
