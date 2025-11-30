@@ -12,10 +12,62 @@ public class ItemSorter {
     private final boolean preventOverfill;
     private final boolean stackItems;
 
+    private final Map<ItemCategory, List<Inventory>> categoryChests = new HashMap<>();
+
     public ItemSorter(List<Material> priorityItems, boolean preventOverfill, boolean stackItems) {
         this.priorityItems = new ArrayList<>(priorityItems);
         this.preventOverfill = preventOverfill;
         this.stackItems = stackItems;
+    }
+
+
+    // Register categories to chests
+    public void addChestToCategory(ItemCategory category, Inventory chest) {
+        categoryChests
+                .computeIfAbsent(category, c -> new ArrayList<>())
+                .add(chest);
+    }
+
+    // Select best chest for given item/category
+    public Inventory getChestForCategory(ItemCategory category, ItemStack item) {
+        List<Inventory> list = categoryChests.get(category);
+        if (list == null || list.isEmpty()) return null;
+
+        // Prefer chest that still has room
+        for (Inventory inv : list) {
+            if (canFitInInventory(inv, item)) return inv;
+        }
+
+        return null; // all are full
+    }
+
+    // API to actually sort items into chests
+    public Map<ItemStack, ItemCategory> sortIntoChests(List<ItemStack> items) {
+        Map<ItemStack, ItemCategory> failures = new HashMap<>();
+
+        List<ItemStack> sorted = sortItems(items);
+
+        for (ItemStack item : sorted) {
+            ItemCategory category = ItemCategory.getCategory(item);
+            Inventory target = getChestForCategory(category, item);
+
+            if (target != null) {
+                addItemToInventory(target, item);
+                continue;
+            }
+
+            // Fallback: Overflow
+            List<Inventory> overflow = categoryChests.get(ItemCategory.MISC_OVERFLOW);
+            if (overflow != null && !overflow.isEmpty()) {
+                addItemToInventory(overflow.get(0), item);
+                continue;
+            }
+
+            // If no chest, return as failure
+            failures.put(item, category);
+        }
+
+        return failures;
     }
 
     public List<ItemStack> sortItems(List<ItemStack> items) {
@@ -60,7 +112,7 @@ public class ItemSorter {
         return result;
     }
 
-    private List<ItemStack> sortByPriority(List<ItemStack> items) {
+        private List<ItemStack> sortByPriority(List<ItemStack> items) {
         items.sort((item1, item2) -> {
             int priority1 = getPriority(item1.getType());
             int priority2 = getPriority(item2.getType());
