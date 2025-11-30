@@ -86,3 +86,11 @@ performance:
   # Enable debug messages in console
   # Default: false
   debug: false
+
+# Memory settings
+memory:
+  # Maximum number of remembered destination chests per item category
+  # In vanilla logic, mobs may remember around 9 points; we override this
+  # to improve consistency so same items go to the same chests.
+  # Default: 100
+  max-category-chests: 100

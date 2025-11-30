@@ -25,6 +25,7 @@ public class ConfigManager {
     private List<Material> priorityItems;
     private int maxActiveGolems;
     private boolean debug;
+    private int maxCategoryChestsMemory;
 
     public ConfigManager(CopperGolemSorterPlugin plugin) {
         this.plugin = plugin;
@@ -61,6 +62,7 @@ public class ConfigManager {
 
         maxActiveGolems = config.getInt("performance.max-active-golems", 50);
         debug = config.getBoolean("performance.debug", false);
+        maxCategoryChestsMemory = config.getInt("memory.max-category-chests", 100);
 
         if (debug) {
             plugin.getLogger().info("Configuration loaded:");
@@ -69,6 +71,7 @@ public class ConfigManager {
             plugin.getLogger().info("  Movement speed: " + movementSpeed);
             plugin.getLogger().info("  Max stacks: " + maxStacks);
             plugin.getLogger().info("  Priority items: " + priorityItems.size());
+            plugin.getLogger().info("  Max remembered chests per category: " + maxCategoryChestsMemory);
         }
     }
 
@@ -126,5 +129,9 @@ public class ConfigManager {
 
     public boolean isDebug() {
         return debug;
+    }
+
+    public int getMaxCategoryChestsMemory() {
+        return maxCategoryChestsMemory;
     }
 }

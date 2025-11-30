@@ -29,6 +29,8 @@ public class GolemController {
     private ItemSorter itemSorter;
     private BukkitTask updateTask;
     private EntityType copperGolemType;
+    // Remember preferred destination chests per item category (FIFO capped)
+    private final Map<ItemCategory, LinkedList<String>> categoryChestMemory = new HashMap<>();
 
     public GolemController(CopperGolemSorterPlugin plugin) {
         this.plugin = plugin;
@@ -282,25 +284,37 @@ public class GolemController {
         for (ItemStack item : items) {
             ItemCategory cat = ItemCategory.getCategory(item);
 
-            // 1) Try category chest
-            Chest categoryChest = chestManager.findBestChestForItems(normalChests, Collections.singletonList(item));
+            // 1) Try remembered chests first (normal then copper)
+            Chest remembered = getRememberedChestWithSpace(cat, normalChests, item);
+            if (remembered == null) {
+                remembered = getRememberedChestWithSpace(cat, copperChests, item);
+            }
+            if (remembered != null) {
+                itemSorter.addItemToInventory(remembered.getInventory(), item);
+                chestManager.placeSignOnChest(remembered, cat);
+                rememberChest(cat, remembered);
+                continue;
+            }
 
+            // 2) Pick best category chest among normals
+            Chest categoryChest = chestManager.findBestChestForItems(normalChests, Collections.singletonList(item));
             if (categoryChest != null && itemSorter.canFitInInventory(categoryChest.getInventory(), item)) {
                 itemSorter.addItemToInventory(categoryChest.getInventory(), item);
                 chestManager.placeSignOnChest(categoryChest, cat);
+                rememberChest(cat, categoryChest);
                 continue;
             }
 
-            // 2) Try copper chest
+            // 3) Fallback to copper chests
             Chest copper = chestManager.findBestChestForItems(copperChests, Collections.singletonList(item));
-
             if (copper != null && itemSorter.canFitInInventory(copper.getInventory(), item)) {
                 itemSorter.addItemToInventory(copper.getInventory(), item);
                 chestManager.placeSignOnChest(copper, cat);
+                rememberChest(cat, copper);
                 continue;
             }
 
-            // 3) No space anywhere, keep item
+            // 4) No space anywhere, keep item
             remaining.add(item);
         }
 
@@ -315,6 +329,37 @@ public class GolemController {
                 plugin.getLogger().warning("Golem is holding " + remaining.size() + " unplaced items (waiting for space)");
             }
         }
+    }
+
+    private Chest getRememberedChestWithSpace(ItemCategory category, List<Chest> candidates, ItemStack item) {
+        LinkedList<String> keys = categoryChestMemory.get(category);
+        if (keys == null || keys.isEmpty()) return null;
+
+        for (String key : keys) {
+            for (Chest chest : candidates) {
+                if (key.equals(chestKey(chest)) && itemSorter.canFitInInventory(chest.getInventory(), item)) {
+                    return chest;
+                }
+            }
+        }
+        return null;
+    }
+
+    private void rememberChest(ItemCategory category, Chest chest) {
+        int limit = plugin.getConfigManager().getMaxCategoryChestsMemory();
+        LinkedList<String> keys = categoryChestMemory.computeIfAbsent(category, c -> new LinkedList<>());
+        String key = chestKey(chest);
+        // Move to most-recent position
+        keys.remove(key);
+        keys.addLast(key);
+        while (keys.size() > Math.max(1, limit)) {
+            keys.removeFirst();
+        }
+    }
+
+    private String chestKey(Chest chest) {
+        Location l = chest.getLocation();
+        return l.getWorld().getUID() + ":" + l.getBlockX() + ":" + l.getBlockY() + ":" + l.getBlockZ();
     }
 
     private void returnItemsToSource(GolemTask task) {
