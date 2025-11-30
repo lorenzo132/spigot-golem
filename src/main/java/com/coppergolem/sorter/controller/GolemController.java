@@ -266,33 +266,54 @@ public class GolemController {
         ConfigManager config = plugin.getConfigManager();
         LivingEntity golem = task.getGolem();
         List<ItemStack> items = new ArrayList<>(task.getCarriedItems());
-        int itemsDeposited = 0;
 
         List<Chest> normalChests = chestManager.findNormalChestsNearby(
             golem.getLocation(),
             config.getNormalChestDetection()
         );
 
+        List<Chest> copperChests = chestManager.findCopperChestsNearby(
+            golem.getLocation(),
+            config.getCopperChestDetection()
+        );
+
+        List<ItemStack> remaining = new ArrayList<>();
+
         for (ItemStack item : items) {
-            Chest best = chestManager.findBestChestForItems(normalChests, java.util.Collections.singletonList(item));
-            if (best == null) {
-                // couldn't find chest for this item; return all to source and abort
-                returnItemsToSource(task);
-                return;
+            ItemCategory cat = ItemCategory.getCategory(item);
+
+            // 1) Try category chest
+            Chest categoryChest = chestManager.findBestChestForItems(normalChests, Collections.singletonList(item));
+
+            if (categoryChest != null && itemSorter.canFitInInventory(categoryChest.getInventory(), item)) {
+                itemSorter.addItemToInventory(categoryChest.getInventory(), item);
+                chestManager.placeSignOnChest(categoryChest, cat);
+                continue;
             }
-            if (itemSorter.canFitInInventory(best.getInventory(), item)) {
-                int deposited = itemSorter.addItemToInventory(best.getInventory(), item);
-                itemsDeposited += deposited;
-                ItemCategory cat = ItemCategory.getCategory(item);
-                chestManager.placeSignOnChest(best, cat);
+
+            // 2) Try copper chest
+            Chest copper = chestManager.findBestChestForItems(copperChests, Collections.singletonList(item));
+
+            if (copper != null && itemSorter.canFitInInventory(copper.getInventory(), item)) {
+                itemSorter.addItemToInventory(copper.getInventory(), item);
+                chestManager.placeSignOnChest(copper, cat);
+                continue;
             }
+
+            // 3) No space anywhere, keep item
+            remaining.add(item);
         }
 
-        task.clearCarriedItems();
-        task.reset();
+        if (remaining.isEmpty()) {
+            task.clearCarriedItems();
+            task.reset();
+        } else {
+            // Keep only unplaced items; retry later automatically
+            task.setCarriedItems(remaining);
 
-        if (config.isDebug()) {
-            plugin.getLogger().info("Golem " + golem.getUniqueId() + " deposited " + itemsDeposited + " items");
+            if (config.isDebug()) {
+                plugin.getLogger().warning("Golem is holding " + remaining.size() + " unplaced items (waiting for space)");
+            }
         }
     }
 
